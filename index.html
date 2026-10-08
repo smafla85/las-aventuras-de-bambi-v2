@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Las Aventuras de Bambi</title>
+  <style>
+    html, body {
+      overscroll-behavior: none;
+    }
+    body {
+      margin: 0;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: monospace;
+      color: #e0e0e0;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    h1 { margin: 10px 0 8px; font-size: clamp(18px, 5vw, 32px); }
+    canvas {
+      border: 3px solid #4a4a6a;
+      border-radius: 4px;
+      image-rendering: pixelated;
+      background: #2d5a27;
+      width: 100%;
+      max-width: 640px;
+      height: auto;
+      box-sizing: border-box;
+      touch-action: none;
+    }
+    p { color: #8888aa; font-size: 13px; text-align: center; padding: 0 10px; }
+
+    /* --- Controles táctiles (solo se muestran en pantallas táctiles) --- */
+    #touch {
+      display: none;
+      width: 100%;
+      max-width: 640px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px 20px;
+      box-sizing: border-box;
+    }
+    body.touch #touch { display: flex; }
+    body.touch p.kb-hint { display: none; }
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 58px);
+      grid-template-rows: repeat(3, 58px);
+      gap: 4px;
+    }
+    .dbtn, #btnHeart {
+      background: rgba(255, 255, 255, 0.07);
+      border: 2px solid #4a4a6a;
+      border-radius: 14px;
+      color: #e0e0e0;
+      font-size: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .dbtn:active, #btnHeart:active { background: rgba(255, 159, 200, 0.25); }
+    .dpad .empty { border: none; background: none; }
+    #btnHeart {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      font-size: 44px;
+      border-color: #ff9fc8;
+    }
+  </style>
+</head>
+<body>
+  <h1>🗡️ Las Aventuras de Bambi</h1>
+  <canvas id="game" width="640" height="480"></canvas>
+
+  <div id="touch">
+    <div class="dpad">
+      <div class="empty"></div>
+      <div class="dbtn" id="btnUp">▲</div>
+      <div class="empty"></div>
+      <div class="dbtn" id="btnLeft">◀</div>
+      <div class="empty"></div>
+      <div class="dbtn" id="btnRight">▶</div>
+      <div class="empty"></div>
+      <div class="dbtn" id="btnDown">▼</div>
+      <div class="empty"></div>
+    </div>
+    <div id="btnHeart">💗</div>
+  </div>
+
+  <p class="kb-hint">Muévase con WASD o las flechas · ESPACIO lanza corazones 💗 · M silencia la música</p>
+  <script src="js/audio.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
