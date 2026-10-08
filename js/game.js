@@ -324,6 +324,7 @@ let quizOptionRects = [];   // cajas de las opciones (para tocar/clic)
 let collected = [];         // recuerdos recogidos en el Jardín (booleans)
 let particles = [];         // partículas de estallido (corazones)
 let dust = [];               // polvillo de pasos y pequeños detalles ambientales
+let motes = [];               // partículas ambientales flotantes (polen, polvo, brasas) por tema
 let fade = 1;                // fundido entre escenas (1 = negro, 0 = visible)
 let ambientTimer = 10, ambientText = '', ambientAlpha = 0; // mensajes dulces ambientales
 let shakeTime = 0, shakeMag = 0; // sacudida de pantalla (impacto de combate)
@@ -368,10 +369,13 @@ function loadLevel(i) {
     hearts = [];
     entitiesStatic = [];
     collected = [];
+    motes = [];
     state = 'intro';
     AudioSys.play(level.music || level.theme);
     return;
   }
+
+  spawnMotes(level.theme);
 
   player.x = level.start.col * TILE + 5;
   player.y = level.start.row * TILE + 12;
@@ -870,6 +874,55 @@ function drawDust() {
   ctx.globalAlpha = 1;
 }
 
+// Partículas ambientales flotantes (polen/polvo/brasas), propias de cada tema
+const MOTE_CONFIG = {
+  forest: { count: 16, color: '255,250,210', vy: [-14, -6] },
+  cave:   { count: 14, color: '190,220,255', vy: [-8, -3] },
+  castle: { count: 12, color: '255,214,140', vy: [-12, -5] },
+};
+
+function spawnMotes(theme) {
+  const cfg = MOTE_CONFIG[theme] || MOTE_CONFIG.forest;
+  motes = [];
+  for (let i = 0; i < cfg.count; i++) {
+    motes.push({
+      baseX: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      x: 0,
+      vy: cfg.vy[0] + Math.random() * (cfg.vy[1] - cfg.vy[0]),
+      swayAmp: 6 + Math.random() * 10,
+      swaySpeed: 0.4 + Math.random() * 0.6,
+      swayPhase: Math.random() * Math.PI * 2,
+      size: 1.1 + Math.random() * 1.4,
+      color: cfg.color,
+    });
+  }
+}
+
+function updateMotes(dt) {
+  for (const m of motes) {
+    m.y += m.vy * dt;
+    if (m.y < -10) {
+      m.y = canvas.height + 10;
+      m.baseX = Math.random() * canvas.width;
+    }
+    m.swayPhase += dt * m.swaySpeed;
+    m.x = m.baseX + Math.sin(m.swayPhase) * m.swayAmp;
+  }
+}
+
+function drawMotes() {
+  for (const m of motes) {
+    const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(m.swayPhase * 1.3));
+    ctx.globalAlpha = twinkle * 0.5;
+    ctx.fillStyle = `rgba(${m.color},1)`;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 // Sombra ovalada suave bajo un personaje
 function drawShadow(cx, feetY, rx, ry) {
   ctx.save();
@@ -891,11 +944,13 @@ function drawSprite(img, dirKey, frame, cx, feetY) {
 }
 
 function drawPlayer() {
-  drawShadow(player.x + player.w / 2, player.y + player.h, 13, 5);
+  const feetY = player.y + player.h;
+  drawShadow(player.x + player.w / 2, feetY, 13, 5);
   // Parpadea mientras es invulnerable
   if (player.iframes > 0 && Math.floor(time * 12) % 2 === 0) return;
   const frame = player.moving ? (Math.floor(player.animTime * 8) % 4) : 0;
-  drawSprite(images.character, player.dir, frame, player.x + player.w / 2, player.y + player.h);
+  const bob = player.moving ? Math.abs(Math.sin(time * 14)) * 2 : 0;
+  drawSprite(images.character, player.dir, frame, player.x + player.w / 2, feetY - bob);
 }
 
 function drawSasha() {
@@ -943,8 +998,28 @@ function drawGroundForest() {
         drawTile(images.overworld, fc, fr, x, y);
       }
       if (t === 'b') drawTile(images.overworld, T_ROCK[0], T_ROCK[1], x, y);
+      if (t === '.') drawGrassTuft(col, row, x, y);
     }
   }
+}
+
+// Matitas de pasto sutiles, para romper la repetición del tile de césped
+function drawGrassTuft(col, row, x, y) {
+  const h = tileHash(col, row);
+  if (h % 4 !== 0) return; // solo ~1 de cada 4 tiles
+  const tx = x + 6 + (h % 20);
+  const ty = y + 10 + ((h >> 3) % 16);
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.strokeStyle = '#2f6b1f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(tx, ty + 4);
+  ctx.lineTo(tx - 2, ty);
+  ctx.moveTo(tx + 3, ty + 4);
+  ctx.lineTo(tx + 3, ty - 1);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Destello suave y periódico sobre el agua, distinto por cada tile
@@ -1067,7 +1142,18 @@ function drawCollectibles() {
   level.collectibles.forEach((c, idx) => {
     if (collected[idx]) return;
     const bob = Math.sin(time * 3 + idx) * 4;
-    ctx.fillText('💗', c.col * TILE + TILE / 2, c.row * TILE + TILE / 2 + bob);
+    const cx = c.col * TILE + TILE / 2;
+    const cy = c.row * TILE + TILE / 2 + bob;
+
+    // Resplandor suave detrás del recuerdo, para que se note a distancia
+    const glowPulse = 0.5 + 0.5 * Math.sin(time * 2.4 + idx * 1.9);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
+    g.addColorStop(0, `rgba(255,170,210,${0.35 + glowPulse * 0.2})`);
+    g.addColorStop(1, 'rgba(255,170,210,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - 18, cy - 18, 36, 36);
+
+    ctx.fillText('💗', cx, cy);
   });
   ctx.textAlign = 'left';
 }
@@ -1165,6 +1251,7 @@ function drawScene() {
 
   drawHearts();
   drawParticles();
+  drawMotes();
   drawVignette();
   ctx.restore();
 
@@ -1474,6 +1561,7 @@ function gameLoop(timestamp) {
 
   updateParticles(dt);
   updateDust(dt);
+  updateMotes(dt);
   if (shakeTime > 0) { shakeTime -= dt; if (shakeTime <= 0) shakeMag = 0; }
   fade = Math.max(0, fade - dt * 1.8);
 
