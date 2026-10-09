@@ -335,6 +335,41 @@ function shake(mag, dur) {
   shakeTime = dur;
 }
 
+// ============================================
+// CÁMARA CINEMATOGRÁFICA (paneos/zooms tipo intro de misión)
+// ============================================
+let camera = { focusX: 320, focusY: 240, zoom: 1 };
+let camAnim = null;
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Arranca un paneo/zoom de cámara desde (fromX,fromY,fromZoom) hasta (toX,toY,toZoom)
+function cinematic(fromX, fromY, fromZoom, toX, toY, toZoom, duration) {
+  camAnim = { fromX, fromY, fromZoom, toX, toY, toZoom, duration, elapsed: 0 };
+  camera.focusX = fromX;
+  camera.focusY = fromY;
+  camera.zoom = fromZoom;
+}
+
+function updateCamera(dt) {
+  if (!camAnim) return;
+  camAnim.elapsed += dt;
+  const t = Math.min(1, camAnim.elapsed / camAnim.duration);
+  const e = easeInOutCubic(t);
+  camera.focusX = camAnim.fromX + (camAnim.toX - camAnim.fromX) * e;
+  camera.focusY = camAnim.fromY + (camAnim.toY - camAnim.fromY) * e;
+  camera.zoom = camAnim.fromZoom + (camAnim.toZoom - camAnim.fromZoom) * e;
+  if (t >= 1) camAnim = null;
+}
+
+function applyCamera() {
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.focusX, -camera.focusY);
+}
+
 function tileAt(col, row) {
   if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return 'T';
   return level.map[row][col] || '.';
@@ -421,6 +456,13 @@ function loadLevel(i) {
   }
   state = 'intro';
   AudioSys.play(level.music || level.theme);
+
+  // Cámara cinematográfica de entrada: revela al villano (o al propio Sebastián) y luego se abre a la escena completa
+  if (villain) {
+    cinematic(villain.x, villain.y, 2.0, canvas.width / 2, canvas.height / 2, 1, 1.4);
+  } else {
+    cinematic(player.x + player.w / 2, player.y + player.h, 1.5, canvas.width / 2, canvas.height / 2, 1, 1);
+  }
 }
 
 function showMsg(text, after) {
@@ -750,6 +792,7 @@ function updateHearts(dt) {
         AudioSys.sfx.villainDown();
         spawnBurst(villain.x, villain.y - 10 * villain.scale, '💗', 26);
         shake(7, 0.3);
+        cinematic(villain.x, villain.y - 10 * villain.scale, 1.6, canvas.width / 2, canvas.height / 2, 1, 1.2);
         showMsg(villain.defeat);
       }
     }
@@ -1228,6 +1271,7 @@ function drawScene() {
   if (shakeTime > 0) {
     ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
   }
+  applyCamera();
 
   if (level.theme === 'forest') drawGroundForest();
   else if (level.theme === 'cave') drawGroundCave();
@@ -1555,13 +1599,14 @@ function drawBackground() {
 let lastTime = 0;
 
 function gameLoop(timestamp) {
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  const dt = Math.max(0, Math.min((timestamp - lastTime) / 1000, 0.05));
   lastTime = timestamp;
   time += dt;
 
   updateParticles(dt);
   updateDust(dt);
   updateMotes(dt);
+  updateCamera(dt);
   if (shakeTime > 0) { shakeTime -= dt; if (shakeTime <= 0) shakeMag = 0; }
   fade = Math.max(0, fade - dt * 1.8);
 
