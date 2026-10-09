@@ -790,7 +790,7 @@ function updateHearts(dt) {
       if (villain.hp <= 0) {
         villain.dead = true;
         AudioSys.sfx.villainDown();
-        spawnBurst(villain.x, villain.y - 10 * villain.scale, '💗', 26);
+        spawnBurst(villain.x, villain.y - 10 * villain.scale, ['💗', '💖', '✨'], 26);
         shake(7, 0.3);
         cinematic(villain.x, villain.y - 10 * villain.scale, 1.6, canvas.width / 2, canvas.height / 2, 1, 1.2);
         showMsg(villain.defeat);
@@ -817,9 +817,18 @@ function drawVillain() {
 
   drawShadow(villain.x, villain.y, 15 * villain.scale, 5 * villain.scale);
 
+  // Pequeño "pop" de impacto al recibir un golpe, y resplandor rosado alrededor
+  const hitRatio = villain.hitFlash > 0 ? villain.hitFlash / 0.18 : 0;
+  const pop = 1 + hitRatio * 0.12;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
   ctx.save();
   ctx.globalAlpha = villain.hitFlash > 0 ? 0.45 : 0.82 + Math.sin(time * 2.2) * 0.1;
-  ctx.drawImage(img, frame * CHAR_W, DIR_ROW[dir] * CHAR_H, CHAR_W, CHAR_H, x, y, w, h);
+  ctx.shadowColor = 'rgba(255,95,158,0.55)';
+  ctx.shadowBlur = 4 + hitRatio * 8;
+  ctx.translate(cx, cy);
+  ctx.scale(pop, pop);
+  ctx.drawImage(img, frame * CHAR_W, DIR_ROW[dir] * CHAR_H, CHAR_W, CHAR_H, -w / 2, -h / 2, w, h);
   ctx.restore();
 
   // Nombre y barra de vida
@@ -849,6 +858,7 @@ function drawHearts() {
 // SISTEMA DE PARTÍCULAS (estallidos de corazones)
 // ============================================
 function spawnBurst(x, y, symbol, count = 12) {
+  const symbols = Array.isArray(symbol) ? symbol : [symbol || '💗'];
   for (let i = 0; i < count; i++) {
     const ang = Math.random() * Math.PI * 2;
     const spd = 40 + Math.random() * 90;
@@ -857,7 +867,7 @@ function spawnBurst(x, y, symbol, count = 12) {
       vx: Math.cos(ang) * spd,
       vy: Math.sin(ang) * spd - 30,
       life: 0.5 + Math.random() * 0.5,
-      symbol: symbol || '💗',
+      symbol: symbols[Math.floor(Math.random() * symbols.length)],
       size: 14 + Math.random() * 10,
     });
   }
@@ -986,14 +996,29 @@ function drawSprite(img, dirKey, frame, cx, feetY) {
   ctx.drawImage(img, sx, sy, CHAR_W, CHAR_H, cx - CHAR_DW / 2, feetY - CHAR_DH, CHAR_DW, CHAR_DH);
 }
 
+// Aura cálida: Sebastián siempre lleva consigo un resplandor suave (el amor alumbra incluso en la cueva)
+function drawWarmGlow(cx, cy, radius, alpha) {
+  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, radius);
+  g.addColorStop(0, `rgba(255,214,140,${alpha})`);
+  g.addColorStop(1, 'rgba(255,214,140,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+}
+
 function drawPlayer() {
   const feetY = player.y + player.h;
-  drawShadow(player.x + player.w / 2, feetY, 13, 5);
+  const cx = player.x + player.w / 2;
+  drawShadow(cx, feetY, 13, 5);
+  drawWarmGlow(cx, feetY - 22, 46, level.theme === 'cave' ? 0.3 : 0.16);
   // Parpadea mientras es invulnerable
   if (player.iframes > 0 && Math.floor(time * 12) % 2 === 0) return;
   const frame = player.moving ? (Math.floor(player.animTime * 8) % 4) : 0;
   const bob = player.moving ? Math.abs(Math.sin(time * 14)) * 2 : 0;
-  drawSprite(images.character, player.dir, frame, player.x + player.w / 2, feetY - bob);
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,0.55)';
+  ctx.shadowBlur = 3;
+  drawSprite(images.character, player.dir, frame, cx, feetY - bob);
+  ctx.restore();
 }
 
 function drawSasha() {
@@ -1212,6 +1237,29 @@ function drawVignette() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+// Tinte de color por tema + viñeta de encuadre en las esquinas (espacio de pantalla, no se mueve con la cámara)
+const THEME_GRADE = {
+  forest: 'rgba(255,224,170,0.05)',
+  cave: 'rgba(70,50,150,0.08)',
+  castle: 'rgba(255,150,190,0.05)',
+};
+
+function drawScreenGrade() {
+  const tint = THEME_GRADE[level.theme];
+  if (tint) {
+    ctx.fillStyle = tint;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const g = ctx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, canvas.height * 0.42,
+    canvas.width / 2, canvas.height / 2, canvas.height * 0.75
+  );
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 function drawHud() {
   // Panel del nombre de nivel (esquinas redondeadas + degradado)
   ctx.font = 'bold 14px monospace';
@@ -1299,6 +1347,7 @@ function drawScene() {
   drawVignette();
   ctx.restore();
 
+  drawScreenGrade();
   drawHud();
 }
 
